@@ -7,7 +7,6 @@ import Header from "@/components/Header";
 import SystemStatusHero from "@/components/SystemStatusHero";
 import SensorCard from "@/components/SensorCard";
 import DeviceInfoCard from "@/components/DeviceInfoCard";
-import { StatusLevel } from "@/types/sensor";
 
 export default function Home() {
   const [page, setPage] = useState("Dashboard");
@@ -29,7 +28,7 @@ export default function Home() {
         setSensorData(data);
       }
     } catch (err) {
-      console.error("Xəta:", err);
+      console.error("API error:", err);
     }
   };
 
@@ -39,9 +38,8 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // Status tiplərini xətasız müəyyən edirik
-  const safeStatus: StatusLevel = "safe";
-  const gasStatus: StatusLevel = sensorData.gasValue > 300 ? "danger" : "safe";
+  const currentGasStatus = sensorData.gasValue > 300 ? "danger" : "safe";
+  const currentSafeStatus = "safe";
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-white">
@@ -53,10 +51,10 @@ export default function Home() {
         <main className="mx-auto w-full max-w-[1180px] p-4 md:p-6 space-y-6">
           
           <SystemStatusHero 
-            overall={gasStatus}
-            temp={{ current: sensorData.temperature, status: safeStatus }}
-            humidity={{ current: sensorData.humidity, status: safeStatus }}
-            gas={{ current: sensorData.gasValue, status: gasStatus }}
+            overall={currentGasStatus}
+            temp={{ current: sensorData.temperature, status: currentSafeStatus }}
+            humidity={{ current: sensorData.humidity, status: currentSafeStatus }}
+            gas={{ current: sensorData.gasValue, status: currentGasStatus }}
             deviceOnline={true}
             deviceStatus="online"
           />
@@ -67,7 +65,9 @@ export default function Home() {
               label="Temperature"
               unit="°C"
               value={sensorData.temperature}
-              status={safeStatus}
+              status={currentSafeStatus}
+              history={[sensorData.temperature]}
+              prevValue={sensorData.temperature}
               color="#22D3EE"
             />
             <SensorCard 
@@ -75,7 +75,9 @@ export default function Home() {
               label="Humidity"
               unit="%"
               value={sensorData.humidity}
-              status={safeStatus}
+              status={currentSafeStatus}
+              history={[sensorData.humidity]}
+              prevValue={sensorData.humidity}
               color="#3B82F6"
             />
             <SensorCard 
@@ -83,7 +85,9 @@ export default function Home() {
               label="Gas Level"
               unit="PPM"
               value={sensorData.gasValue}
-              status={gasStatus}
+              status={currentGasStatus}
+              history={[sensorData.gasValue]}
+              prevValue={sensorData.gasValue}
               color="#F59E0B"
             />
           </div>

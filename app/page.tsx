@@ -1,24 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Thermometer, Droplet, Flame } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
-import SystemStatusHero from "@/components/SystemStatusHero";
-import SensorCard from "@/components/SensorCard";
-import DeviceInfoCard from "@/components/DeviceInfoCard";
 
 export default function Home() {
   const [page, setPage] = useState("Dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   const [sensorData, setSensorData] = useState({
     temperature: 0,
     humidity: 0,
     gasValue: 0,
-    ipAddress: "192.168.100.143",
-    lastCommunication: new Date().toISOString()
+    ipAddress: "Yüklənir...",
+    lastCommunication: "Yüklənir..."
   });
 
   const fetchRealData = async () => {
@@ -26,103 +21,51 @@ export default function Home() {
       const res = await fetch("/api/sensors", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        setSensorData({
-          temperature: data.temperature ?? 0,
-          humidity: data.humidity ?? 0,
-          gasValue: data.gasValue ?? 0,
-          ipAddress: data.ipAddress || "192.168.100.143",
-          lastCommunication: data.lastCommunication || new Date().toISOString()
-        });
+        setSensorData(data);
       }
     } catch (err) {
-      console.error("API error:", err);
+      console.error("Xəta:", err);
     }
   };
 
   useEffect(() => {
-    setMounted(true);
     fetchRealData();
     const interval = setInterval(fetchRealData, 3000);
     return () => clearInterval(interval);
   }, []);
 
-  if (!mounted) return null;
-
-  const gasStatus = sensorData.gasValue > 300 ? "danger" : "safe";
-  const nowIso = new Date().toISOString();
-
-  const fullDeviceData = {
-    status: "online" as const,
-    deviceStatus: "online" as const,
-    ipAddress: sensorData.ipAddress,
-    lastCommunication: sensorData.lastCommunication,
-    lastComm: sensorData.lastCommunication,
-    lastSeen: nowIso,
-    updatedAt: nowIso,
-    wifiSignal: "100%",
-    firmware: "v1.0.0",
-    uptime: "Aktiv"
-  };
-
   return (
-    <div className="flex min-h-screen bg-slate-950 text-white overflow-x-hidden">
-      {/* Sol Menü Hizalaması */}
-      <div className="shrink-0">
-        <Sidebar page={page} setPage={setPage} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
-      </div>
+    <div className="flex min-h-screen bg-slate-950 text-white">
+      <Sidebar page={page} setPage={setPage} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       
-      {/* Ana İçerik Alanı */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col">
         <Header setMobileOpen={setMobileOpen} />
         
-        <main className="w-full max-w-[1200px] mx-auto p-4 md:p-6 space-y-6">
+        <main className="mx-auto w-full max-w-[1180px] p-6 space-y-6">
+          <h1 className="text-2xl font-bold text-cyan-400">ESP8266 Canlı Panel</h1>
           
-          <SystemStatusHero 
-            overall={gasStatus}
-            temp={{ current: sensorData.temperature, status: "safe" }}
-            humidity={{ current: sensorData.humidity, status: "safe" }}
-            gas={{ current: sensorData.gasValue, status: gasStatus }}
-            deviceOnline={true}
-            deviceStatus="online"
-            lastSeen={nowIso}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
+              <p className="text-slate-400 text-sm">Temperatur</p>
+              <h2 className="text-3xl font-bold text-cyan-400">{sensorData.temperature} °C</h2>
+            </div>
 
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-            <SensorCard 
-              icon={Thermometer}
-              label="Temperature"
-              unit="°C"
-              value={sensorData.temperature}
-              status="safe"
-              color="#22D3EE"
-            />
-            <SensorCard 
-              icon={Droplet}
-              label="Humidity"
-              unit="%"
-              value={sensorData.humidity}
-              status="safe"
-              color="#3B82F6"
-            />
-            <SensorCard 
-              icon={Flame}
-              label="Gas Level"
-              unit="PPM"
-              value={sensorData.gasValue}
-              status={gasStatus}
-              color="#F59E0B"
-            />
+            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
+              <p className="text-slate-400 text-sm">Rütubət</p>
+              <h2 className="text-3xl font-bold text-blue-500">{sensorData.humidity} %</h2>
+            </div>
+
+            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
+              <p className="text-slate-400 text-sm">Qaz Səviyyəsi</p>
+              <h2 className="text-3xl font-bold text-amber-500">{sensorData.gasValue} PPM</h2>
+            </div>
           </div>
 
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-            <DeviceInfoCard 
-              device={fullDeviceData}
-              deviceStatus="online" 
-              ipAddress={sensorData.ipAddress} 
-              lastComm={sensorData.lastCommunication} 
-            />
+          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-2">
+            <p className="text-slate-400 text-sm">Cihaz Statusu: <span className="text-green-400 font-bold">Online</span></p>
+            <p className="text-slate-400 text-sm">ESP8266 IP Ünvanı: <span className="text-white font-mono">{sensorData.ipAddress}</span></p>
+            <p className="text-slate-400 text-sm">Son Əlaqə: <span className="text-white">{sensorData.lastCommunication}</span></p>
           </div>
-
         </main>
       </div>
     </div>

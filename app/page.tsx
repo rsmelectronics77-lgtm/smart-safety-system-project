@@ -7,12 +7,12 @@ import Header from "@/components/Header";
 import SystemStatusHero from "@/components/SystemStatusHero";
 import SensorCard from "@/components/SensorCard";
 import DeviceInfoCard from "@/components/DeviceInfoCard";
+import { StatusLevel } from "@/types/sensor";
 
 export default function Home() {
   const [page, setPage] = useState("Dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // ESP8266-dan gələcək real canlı məlumatlar
   const [sensorData, setSensorData] = useState({
     temperature: 0,
     humidity: 0,
@@ -21,7 +21,6 @@ export default function Home() {
     lastCommunication: "Yüklənir..."
   });
 
-  // Vercel API-dən məlumatları hər 3 saniyədən bir çəkən funksiya
   const fetchRealData = async () => {
     try {
       const res = await fetch("/api/sensors", { cache: "no-store" });
@@ -30,7 +29,7 @@ export default function Home() {
         setSensorData(data);
       }
     } catch (err) {
-      console.error("Data çəkilərkən xəta baş verdi:", err);
+      console.error("Xəta:", err);
     }
   };
 
@@ -40,8 +39,9 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // Status müəyyən edilməsi
-  const gStatus = sensorData.gasValue > 300 ? "danger" : "safe";
+  // Status tiplərini xətasız müəyyən edirik
+  const safeStatus: StatusLevel = "safe";
+  const gasStatus: StatusLevel = sensorData.gasValue > 300 ? "danger" : "safe";
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-white">
@@ -52,23 +52,22 @@ export default function Home() {
         
         <main className="mx-auto w-full max-w-[1180px] p-4 md:p-6 space-y-6">
           
-          {/* ÜMUMİ STATUS BANNERİ */}
           <SystemStatusHero 
-            overall={gStatus}
-            temp={{ current: sensorData.temperature }}
-            humidity={{ current: sensorData.humidity }}
-            gas={{ current: sensorData.gasValue }}
+            overall={gasStatus}
+            temp={{ current: sensorData.temperature, status: safeStatus }}
+            humidity={{ current: sensorData.humidity, status: safeStatus }}
+            gas={{ current: sensorData.gasValue, status: gasStatus }}
             deviceOnline={true}
             deviceStatus="online"
           />
 
-          {/* REAL SENSOR KARTLARI */}
           <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
             <SensorCard 
               icon={Thermometer}
               label="Temperature"
               unit="°C"
               value={sensorData.temperature}
+              status={safeStatus}
               color="#22D3EE"
             />
             <SensorCard 
@@ -76,6 +75,7 @@ export default function Home() {
               label="Humidity"
               unit="%"
               value={sensorData.humidity}
+              status={safeStatus}
               color="#3B82F6"
             />
             <SensorCard 
@@ -83,12 +83,11 @@ export default function Home() {
               label="Gas Level"
               unit="PPM"
               value={sensorData.gasValue}
-              status={gStatus}
+              status={gasStatus}
               color="#F59E0B"
             />
           </div>
 
-          {/* CİHAZ VƏ İP MƏLUMATI */}
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             <DeviceInfoCard 
               deviceStatus="online" 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, useEffect } from "react";
 import { Thermometer, Droplet, Flame } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
@@ -10,90 +10,124 @@ import RealTimeMonitoring from "@/components/RealTimeMonitoring";
 import AlertsPanel from "@/components/AlertsPanel";
 import DeviceInfoCard from "@/components/DeviceInfoCard";
 import SensorHealthPanel from "@/components/SensorHealthPanel";
-import ComingSoon from "@/components/ComingSoon";
-import { useSensorPolling } from "@/hooks/useSensorPolling";
-import { gasStatus, tempStatus, humidityStatus } from "@/lib/thresholds";
 import { StatusLevel } from "@/types/sensor";
 
 export default function Home() {
-  const [page, setPage] = useState("dashboard");
+  const [page, setPage] = useState("Dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [simulateWarning, setSimulateWarning] = useState(false);
 
-  const { snapshot, prev, history, secondsAgo, device, sensors, alerts } = useSensorPolling(simulateWarning);
+  // Real ESP8266 datalarını saxlayan steyt
+  const [sensorData, setSensorData] = useState({
+    temperature: 0,
+    humidity: 0,
+    gasValue: 0,
+    ipAddress: "Yüklənir...",
+    lastCommunication: "Yüklənir..."
+  });
 
-  const tStatus = tempStatus(snapshot.temperature);
-  const hStatus = humidityStatus(snapshot.humidity);
-  const gStatus = gasStatus(snapshot.gas);
+  // Vercel API-dən real məlumatları çəkən funksiya
+  const fetchSensorData = async () => {
+    try {
+      const res = await fetch("/api/sensors", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setSensorData(data);
+      }
+    } catch (err) {
+      console.error("API məlumatı oxunarkən xəta baş verdi:", err);
+    }
+  };
 
-  const overall: StatusLevel = useMemo(() => {
-    const order: Record<StatusLevel, number> = { safe: 0, info: 0, warning: 1, danger: 2 };
-    return [gStatus, tStatus, hStatus].reduce<StatusLevel>((a, b) => (order[b] > order[a] ? b : a), "safe");
-  }, [gStatus, tStatus, hStatus]);
+  useEffect(() => {
+    fetchSensorData();
+    const interval = setInterval(fetchSensorData, 3000); // Hər 3 saniyədən bir canlı yenilə
+    return () => clearInterval(interval);
+  }, []);
+
+  // Statusların təyini (PPM 300-dən çoxdursa Xəbərdarlıq rejiminə keçir)
+  const gStatus: StatusLevel = sensorData.gasValue > 300 ? "danger" : "safe";
+  const overallStatus: StatusLevel = sensorData.gasValue > 300 ? "danger" : "safe";
+
+  // Tarixçə və Alert panelləri üçün obyekt quruluşu
+  const history = {
+    temperature: Array(10).fill(sensorData.temperature),
+    humidity: Array(10).fill(sensorData.humidity),
+    gas: Array(10).fill(sensorData.gasValue)
+  };
+
+  const alerts = sensorData.gasValue > 300 ? [
+    {
+      id: "1",
+      type: "danger" as const,
+      title: "YÜKSƏK QAZ TƏHLÜKƏSİ",
+      message: `Qaz səviyyəsi kritik həddi keçdi: ${sensorData.gasValue} PPM`,
+      timestamp: new Date().toLocaleTimeString('az-AZ')
+    }
+  ] : [];
 
   return (
-    <div className="flex min-h-full">
+    <div className="flex min-h-screen">
       <Sidebar page={page} setPage={setPage} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
-      <div className="flex-1 min-w-0 md:ml-[232px]">
-        <Header setMobileOpen={setMobileOpen} secondsAgo={secondsAgo} connected={snapshot.deviceStatus === "online"} />
-        <main className="px-5 pt-5 pb-[60px] max-w-[1180px] mx-auto flex flex-col gap-[18px]">
-          {page === "dashboard" && (
-            <>
-              <SystemStatusHero
-                overall={overall}
-                temp={snapshot.temperature}
-                humidity={snapshot.humidity}
-                gas={snapshot.gas}
-                deviceOnline={snapshot.deviceStatus === "online"}
-              />
+      
+      <div className="flex-1 min-w-0 flex flex-col">
+        <Header setMobileOpen={setMobileOpen} />
+        
+        <main className="mx-auto w-full max-w-[1180px] p-4 md:p-6 space-y-6">
+          
+          {/* ÜMUMİ STATUS HERO BANNERİ */}
+          <SystemStatusHero
+            overall={overallStatus}
+            temp={{ current: sensorData.temperature }}
+            humidity={{ current: sensorData.humidity }}
+            gas={{ current: sensorData.gasValue }}
+            deviceOnline={true}
+            deviceStatus="online"
+          />
 
-              <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-                <SensorCard
-                  icon={Thermometer}
-                  label="Temperature"
-                  value={snapshot.temperature}
-                  unit="°C"
-                  status={tStatus}
-                  history={history.temperature}
-                  prevValue={prev?.temperature}
-                  color="#22D3EE"
-                />
-                <SensorCard
-                  icon={Droplet}
-                  label="Humidity"
-                  value={snapshot.humidity}
-                  unit="%"
-                  status={hStatus}
-                  history={history.humidity}
-                  prevValue={prev?.humidity}
-                  color="#38BDF8"
-                />
-                <SensorCard icon={Flame} label="Gas Level" value={snapshot.gas} status={gStatus} isGas color="#FBBF24" />
-              </div>
+          {/* SENSOR KARTLARI (CANLI DƏYƏRLƏR) */}
+          <div className="grid gap-4 style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}">
+            <SensorCard
+              icon={Thermometer}
+              label="Temperature"
+              unit="°C"
+              value={sensorData.temperature}
+              history={history.temperature}
+              prevValue={sensorData.temperature}
+              color="#22D3EE"
+            />
+            <SensorCard
+              icon={Droplet}
+              label="Humidity"
+              unit="%"
+              value={sensorData.humidity}
+              history={history.humidity}
+              prevValue={sensorData.humidity}
+              color="#3B82F6"
+            />
+            <SensorCard
+              icon={Flame}
+              label="Gas Level"
+              unit="PPM"
+              value={sensorData.gasValue}
+              status={gStatus}
+              history={history.gas}
+              prevValue={sensorData.gasValue}
+              color="#F59E0B"
+            />
+          </div>
 
-              <div className="grid gap-4 items-stretch lg:grid-cols-[2fr_1fr] grid-cols-1">
-                <RealTimeMonitoring history={history} />
-                <AlertsPanel alerts={alerts} />
-              </div>
+          {/* QRAFİK VƏ BİLDİRİŞ PANELDƏRİ */}
+          <div className="grid gap-4 style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}">
+            <RealTimeMonitoring history={history} />
+            <AlertsPanel alerts={alerts} />
+          </div>
 
-              <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-                {device && <DeviceInfoCard device={device} secondsAgo={secondsAgo} />}
-                <SensorHealthPanel sensors={sensors} />
-              </div>
+          {/* CİHAZ VƏ İP MƏLUMAT KARTLARI */}
+          <div className="grid gap-4 style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}">
+            <DeviceInfoCard deviceStatus="online" ipAddress={sensorData.ipAddress} lastComm={sensorData.lastCommunication} />
+            <SensorHealthPanel sensors={[]} />
+          </div>
 
-              <div className="flex items-center gap-2.5 text-[11.5px] text-text-faint border border-dashed border-border rounded-[10px] px-3.5 py-2.5 flex-wrap">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={simulateWarning} onChange={(e) => setSimulateWarning(e.target.checked)} />
-                  Simulate gas warning (dev preview — shows how the status hero reacts live)
-                </label>
-              </div>
-            </>
-          )}
-          {page === "sensors" && <ComingSoon title="Sensors" />}
-          {page === "analytics" && <ComingSoon title="Analytics" />}
-          {page === "alerts" && <ComingSoon title="Alerts" />}
-          {page === "devices" && <ComingSoon title="Devices" />}
-          {page === "settings" && <ComingSoon title="Settings" />}
         </main>
       </div>
     </div>
